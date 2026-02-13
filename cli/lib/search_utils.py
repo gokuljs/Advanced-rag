@@ -9,3 +9,8 @@ def load_movies():
     with open(DATA_DIR, "r") as f:
         data = json.load(f)
     return data["movies"]
+
+def load_stopwords():
+    with open(DATA_DIR / "stopwords.txt", "r") as f:
+        stopwords = f.readlines()
+    return stopwords

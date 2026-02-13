@@ -1,5 +1,5 @@
 import string
-from lib.search_utils import load_movies
+from lib.search_utils import load_movies, load_stopwords
 
 def transform_text(str):
     text = str.lower()
@@ -8,7 +8,12 @@ def transform_text(str):
 
 def tokenize_text(text):
     text = transform_text(text)
-    token = [tok for tok in text.split() if tok]
+    stopwords = load_stopwords()
+    def _filter(tok):
+        if tok and tok not in stopwords:
+            return True 
+        return False
+    token = [tok for tok in text.split() if _filter(tok)]
     return token
 
 def has_matching_tokens(query_tokens, movie_tokens):

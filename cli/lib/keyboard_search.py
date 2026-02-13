@@ -1,5 +1,5 @@
 import string
-from lib.search_utils import load_movies, load_stopwords
+from .search_utils import load_movies, load_stopwords
 
 def transform_text(str):
     text = str.lower()

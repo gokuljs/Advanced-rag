@@ -1,5 +1,6 @@
 import string
 from .search_utils import load_movies, load_stopwords
+from nltk.stem import PorterStemmer
 
 def transform_text(str):
     text = str.lower()
@@ -9,11 +10,13 @@ def transform_text(str):
 def tokenize_text(text):
     text = transform_text(text)
     stopwords = load_stopwords()
+    stemmer = PorterStemmer()
     def _filter(tok):
         if tok and tok not in stopwords:
             return True 
         return False
     token = [tok for tok in text.split() if _filter(tok)]
+    token = [stemmer.stem(tok) for tok in token]
     return token
 
 def has_matching_tokens(query_tokens, movie_tokens):

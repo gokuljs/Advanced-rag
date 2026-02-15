@@ -5,6 +5,7 @@ def main():
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
     search_parser = subparsers.add_parser("search", help="Search movies using BM25")
+    build_parser = subparsers.add_parser("build", help="Build the inverted index")
     search_parser.add_argument("query", type=str, help="Search query")
     args = parser.parse_args()
     match args.command:

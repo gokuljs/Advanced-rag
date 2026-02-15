@@ -11,7 +11,7 @@ import string
 from collections import defaultdict
 
 from nltk.stem import PorterStemmer
-from cli.lib.search_utils import CACHE_PATH, load_movies, load_stopwords
+from .search_utils import CACHE_PATH, load_movies, load_stopwords
 stemmer = PorterStemmer()
 
 
@@ -145,7 +145,7 @@ def build_command():
     docs = InvertedIndex()
     docs.build()
     docs.save()
-    doc_ids = docs.get_documents("merdia")
+    doc_ids = docs.get_documents("merida")
     print("Printing documents: ", doc_ids[0])
 
 

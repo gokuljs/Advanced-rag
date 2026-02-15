@@ -42,7 +42,7 @@ class InvertedIndex:
         for token in set(tokens):
             self.index[token].add(doc_id)
 
-    def get_document(self, term):
+    def get_documents(self, term):
         """
         Retrieve document IDs containing the specified term.
         
@@ -140,6 +140,13 @@ def has_matching_tokens(query_tokens, movie_tokens):
             if query_tok in movie_tok:
                 return True
     return False
+
+def build_command():
+    docs = InvertedIndex()
+    docs.build()
+    docs.save()
+    doc_ids = docs.get_documents("merdia")
+    print("Printing documents: ", doc_ids[0])
 
 
 def search_command(query, n_results):

@@ -1,5 +1,5 @@
 import argparse
-from lib.keyboard_search import search_command
+from lib.keyboard_search import search_command, build_command
 
 def main():
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
@@ -13,6 +13,8 @@ def main():
             result = search_command(args.query,5)
             for i, result in enumerate(result):
                 print(f"{i+1}. {result['title']} \n")
+        case "build":
+            build_command()
         case _:
             parser.print_help()
 

@@ -84,6 +84,18 @@ class InvertedIndex:
         doc_count = len(self.docmap)
         term_doc_count = len(self.index[token])
         return math.log((doc_count + 1) / (term_doc_count + 1))
+    
+    def get_tf_idf(self, doc_id, term):
+        """
+        Retrieve the TF-IDF for a specific term in a given document.
+        
+        Args:
+            doc_id: Document ID to look up
+            term: Term to look up
+        """
+        tf = self.get_term_frequency(doc_id, term)
+        idf = self.get_idf(term)
+        return tf * idf
         
     def build(self):
         """
@@ -125,6 +137,7 @@ class InvertedIndex:
             self.docmap = pickle.load(f)
         with open(self.term_frequency_path, "rb") as f:
             self.term_frequency = pickle.load(f)
+            
 
 
 def transform_text(text):
@@ -176,6 +189,20 @@ def idf_command(term):
     idx.load()
     print("Print inverse document frequency for the term: ", term, "is", idx.get_idf(term))
     return idx.get_idf(term)
+
+def get_tf_idf_command(doc_id, term):
+    """
+    Retrieve the TF-IDF for a specific term in a given document.
+    
+    Args:
+        doc_id: Document ID to look up
+        term: Term to look up
+    """
+    idx = InvertedIndex()
+    idx.load()
+    print("Print TF-IDF for the term: ", term, "in document: ", doc_id, "is", idx.get_tf_idf(doc_id, term))
+    return idx.get_tf_idf(doc_id, term)
+     
 
 def tokenize_text(text):
     """

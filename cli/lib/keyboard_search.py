@@ -8,8 +8,9 @@ for fast keyword-based movie searches with text preprocessing and stemming.
 import os
 import pickle
 import string
+import math
 from collections import defaultdict
-
+from collections import Counter
 from nltk.stem import PorterStemmer
 from .search_utils import CACHE_PATH, load_movies, load_stopwords
 stemmer = PorterStemmer()
@@ -27,8 +28,10 @@ class InvertedIndex:
         """Initialize an empty inverted index with document mapping."""
         self.index = defaultdict(set)
         self.docmap = {}
-        self.index_path = CACHE_PATH / "index"
-        self.doc_path = CACHE_PATH / "docmap"
+        self.term_frequency = defaultdict(Counter)
+        self.index_path = CACHE_PATH / "index.pkl"
+        self.doc_path = CACHE_PATH / "docmap.pkl"
+        self.term_frequency_path = CACHE_PATH / "term_frequency.pkl"
 
     def _add_document(self, doc_id, text):
         """
@@ -41,6 +44,7 @@ class InvertedIndex:
         tokens = tokenize_text(text)
         for token in set(tokens):
             self.index[token].add(doc_id)
+        self.term_frequency[doc_id].update(tokens)
 
     def get_documents(self, term):
         """
@@ -53,7 +57,34 @@ class InvertedIndex:
             Sorted list of document IDs containing the term
         """
         return sorted(list(self.index[term]))
+    
+    def get_term_frequency(self, doc_id,term):
+        """
+        Retrieve the term frequency for a document.
+        
+        Args:
+            doc_id: Document ID to look up
+        """
+        tokens = tokenize_text(term)
+        if len(tokens) != 1:
+            raise ValueError("Term must be a single token")
+        return self.term_frequency[doc_id][tokens[0]]
 
+    def get_idf(self,term):
+        """
+        Retrieve the inverse document frequency for a term.
+        
+        Args:
+            term: Term to look up
+        """
+        token= tokenize_text(term)
+        if len(token) != 1:
+            raise ValueError("can only have one token")
+        token = token[0]
+        doc_count = len(self.docmap)
+        term_doc_count = len(self.index[token])
+        return math.log(doc_count + 1 / term_doc_count + 1)
+        
     def build(self):
         """
         Build the inverted index from the movie dataset.
@@ -66,6 +97,7 @@ class InvertedIndex:
             text = f"{movie['title']} {movie['description']}"
             self._add_document(doc_id, text)
             self.docmap[doc_id] = movie
+    
 
     def save(self):
         """
@@ -78,6 +110,8 @@ class InvertedIndex:
             pickle.dump(self.index, f)
         with open(self.doc_path, "wb") as f:
             pickle.dump(self.docmap, f)
+        with open(self.term_frequency_path, "wb") as f:
+            pickle.dump(self.term_frequency, f) 
             
     def load(self):
         """
@@ -89,6 +123,8 @@ class InvertedIndex:
             self.index = pickle.load(f)
         with open(self.doc_path, "rb") as f:
             self.docmap = pickle.load(f)
+        with open(self.term_frequency_path, "rb") as f:
+            self.term_frequency = pickle.load(f)
 
 
 def transform_text(text):
@@ -105,6 +141,41 @@ def transform_text(text):
     text = text.translate(str.maketrans("", "", string.punctuation))
     return text
 
+def tf_command(doc_id, term):
+    """
+    Retrieve the term frequency for a specific term in a given document.
+
+    This function loads the inverted index from disk and returns the frequency
+    of the provided term within the specified document.
+
+    Args:
+        doc_id (int): The unique identifier of the document.
+        term (str): The term whose frequency is to be retrieved.
+
+    Returns:
+        int: Frequency of the term in the given document.
+    """
+    idx = InvertedIndex()
+    idx.load()
+    return idx.get_term_frequency(doc_id, term)
+
+def idf_command(term):
+    """
+    Retrieve the inverse document frequency (IDF) for a specific term.
+
+    This function loads the inverted index from disk and calculates the IDF
+    value for the given term across the index's corpus.
+
+    Args:
+        term (str): The term whose IDF is to be computed.
+
+    Returns:
+        float: The inverse document frequency of the given term.
+    """
+    idx = InvertedIndex()
+    idx.load()
+    print("Print inverse document frequency for the term: ", term, "is", idx.get_idf(term))
+    return idx.get_idf(term)
 
 def tokenize_text(text):
     """

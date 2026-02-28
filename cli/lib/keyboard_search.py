@@ -12,7 +12,7 @@ import math
 from collections import defaultdict
 from collections import Counter
 from nltk.stem import PorterStemmer
-from .search_utils import CACHE_PATH, load_movies, load_stopwords
+from .search_utils import CACHE_PATH, load_movies, load_stopwords, BM25_K1
 stemmer = PorterStemmer()
 
 
@@ -97,6 +97,16 @@ class InvertedIndex:
         idf = self.get_idf(term)
         return tf * idf
     
+    def get_bm25_tf(self, doc_id, term,k1 = BM25_K1):
+        """
+        Retrieve the BM25 TF for a specific term in a given document.
+        
+        Args:
+            doc_id: Document ID to look up
+            term: Term to look up
+        """
+        tf = self.get_term_frequency(doc_id, term)
+        return tf * (k1 + 1) / (tf + k1)
     def get_bm25_idf(self, term):
         token= tokenize_text(term)
         if len(token) != 1:
@@ -217,6 +227,19 @@ def get_tf_idf_command(doc_id, term):
     idx.load()
     print("Print TF-IDF for the term: ", term, "in document: ", doc_id, "is", idx.get_tf_idf(doc_id, term))
     return idx.get_tf_idf(doc_id, term)
+
+def get_bm25_tf_command(doc_id, term, k1 = BM25_K1):
+    """
+    Retrieve the BM25 TF for a specific term in a given document.
+    
+    Args:
+        doc_id: Document ID to look up
+        term: Term to look up
+    """
+    idx = InvertedIndex()
+    idx.load()
+    print("Print BM25 TF for the term: ", term, "in document: ", doc_id, "is", idx.get_bm25_tf(doc_id, term, k1))
+    return idx.get_bm25_tf(doc_id, term, k1)
      
 
 def tokenize_text(text):

@@ -7,6 +7,7 @@ from lib.keyboard_search import (
     get_tf_idf_command,
     get_bm25_idf_command,
     get_bm25_tf_command,
+    bm25_search_command,
 )
 from lib.search_utils import BM25_K1, BM25_B
 
@@ -37,8 +38,14 @@ def main():
     bm25_tf_parser.add_argument(
         "b", type=float, nargs="?", default=BM25_B, help="Tunable BM25 B parameter"
     )
+    bm25search_parser = subparsers.add_parser("bm25search", help="Search movies using full BM25 scoring")
+    bm25search_parser.add_argument("query", type=str, help="Search query")
     args = parser.parse_args()
     match args.command:
+        case "bm25search":
+            result = bm25_search_command(args.query, 5)
+            for i, result in enumerate(result):
+                print(f"{i}. '{result['doc_id']}' {result['title']} {result['score']}")
         case "search":
             print(f"Searching for: {args.query}")
             result = search_command(args.query, 5)
@@ -64,6 +71,10 @@ def main():
         case "bm25tf":
             result = get_bm25_tf_command(args.doc_id, args.term, BM25_K1, BM25_B)
             print(result)
+        case "bm25search":
+            result = bm25_search_command(args.query, 5)
+            for i, result in enumerate(result):
+                print(f"{i + 1}. {result['title']} \n")
         case _:
             parser.print_help()
 

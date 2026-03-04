@@ -114,6 +114,46 @@ class InvertedIndex:
         idf = self.get_idf(term)
         return tf * idf
     
+    def bm25_search(self, query, n_results):
+        """
+        Search for movies matching the query string using BM25.
+        
+        Args:
+            query: Search query string
+            n_results: Maximum number of results to return
+        """
+        tokens = tokenize_text(query)
+        scores = {}
+        for doc_id in self.docmap:
+            score =0
+            for token in tokens:
+                score += self.get_bm25_tfidf(doc_id, token)
+            scores[doc_id] = score
+        document_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        result = document_scores[:n_results]
+        format_results=[]
+        for doc_id, score in result:
+            doc=self.docmap[doc_id]
+            format_results.append({
+                "doc_id": doc_id,
+                "title": doc["title"],
+                "score": score
+            })
+            
+        return format_results
+    
+    def get_bm25_tfidf(self, doc_id, term):
+        """
+        Retrieve the BM25 TF-IDF for a specific term in a given document.
+        
+        Args:
+            doc_id: Document ID to look up
+            term: Term to look up
+        """
+        tf = self.get_bm25_tf(doc_id, term)
+        idf = self.get_idf(term)
+        return tf * idf
+    
     def get_bm25_tf(self, doc_id, term,k1 = BM25_K1,b = BM25_B):
         """
         Retrieve the BM25 TF for a specific term in a given document.
@@ -131,6 +171,7 @@ class InvertedIndex:
         else:
             length_norm = 1.0
         return (tf * (k1 + 1)) / (tf + k1 * length_norm)
+    
     def get_bm25_idf(self, term):
         token= tokenize_text(term)
         if len(token) != 1:
@@ -184,6 +225,8 @@ class InvertedIndex:
             self.term_frequency = pickle.load(f)
         with open(self.doc_length_path, "rb") as f:
             self.doc_lengths = pickle.load(f)
+    
+    
             
 
 
@@ -321,6 +364,12 @@ def build_command():
     docs.build()
     docs.save()
 
+
+def bm25_search_command(query, n_results=5):
+    docs = InvertedIndex()
+    docs.load()
+    result = docs.bm25_search(query, n_results)
+    return result
 
 def search_command(query, n_results):
     """

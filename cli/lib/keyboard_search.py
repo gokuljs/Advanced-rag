@@ -12,7 +12,7 @@ import math
 from collections import defaultdict
 from collections import Counter
 from nltk.stem import PorterStemmer
-from .search_utils import CACHE_PATH, load_movies, load_stopwords, BM25_K1
+from .search_utils import CACHE_PATH, load_movies, load_stopwords, BM25_K1, BM25_B
 stemmer = PorterStemmer()
 
 
@@ -32,6 +32,8 @@ class InvertedIndex:
         self.index_path = CACHE_PATH / "index.pkl"
         self.doc_path = CACHE_PATH / "docmap.pkl"
         self.term_frequency_path = CACHE_PATH / "term_frequency.pkl"
+        self.doc_lengths = {}
+        self.doc_length_path = CACHE_PATH / "doc_lengths.pkl"
 
     def _add_document(self, doc_id, text):
         """
@@ -45,6 +47,21 @@ class InvertedIndex:
         for token in set(tokens):
             self.index[token].add(doc_id)
         self.term_frequency[doc_id].update(tokens)
+        self.doc_lengths[doc_id] = len(tokens)
+        
+    def get_avg_doc_length(self):
+        """
+        Retrieve the average length of a document.
+        """
+        lengths = list(self.doc_lengths.values())
+        if len(lengths) == 0:
+            return 0.0
+        ttl = 0 
+        for length in lengths: 
+            ttl+=1
+        return ttl / len(lengths)
+    
+    
 
     def get_documents(self, term):
         """
@@ -97,7 +114,7 @@ class InvertedIndex:
         idf = self.get_idf(term)
         return tf * idf
     
-    def get_bm25_tf(self, doc_id, term,k1 = BM25_K1):
+    def get_bm25_tf(self, doc_id, term,k1 = BM25_K1,b = BM25_B):
         """
         Retrieve the BM25 TF for a specific term in a given document.
         
@@ -106,7 +123,14 @@ class InvertedIndex:
             term: Term to look up
         """
         tf = self.get_term_frequency(doc_id, term)
-        return tf * (k1 + 1) / (tf + k1)
+        doc_length = self.doc_lengths[doc_id]
+        avg_doc_length = self.get_avg_doc_length()
+        idf = self.get_idf(term)
+        if(avg_doc_length >0):
+            length_norm = 1 - b +b * (doc_length / avg_doc_length)
+        else:
+            length_norm = 1.0
+        return (tf * (k1 + 1)) / (tf + k1 * length_norm)
     def get_bm25_idf(self, term):
         token= tokenize_text(term)
         if len(token) != 1:
@@ -143,6 +167,8 @@ class InvertedIndex:
             pickle.dump(self.docmap, f)
         with open(self.term_frequency_path, "wb") as f:
             pickle.dump(self.term_frequency, f) 
+        with open(self.doc_length_path, "wb") as f:
+            pickle.dump(self.doc_lengths, f)
             
     def load(self):
         """
@@ -156,6 +182,8 @@ class InvertedIndex:
             self.docmap = pickle.load(f)
         with open(self.term_frequency_path, "rb") as f:
             self.term_frequency = pickle.load(f)
+        with open(self.doc_length_path, "rb") as f:
+            self.doc_lengths = pickle.load(f)
             
 
 
@@ -228,7 +256,7 @@ def get_tf_idf_command(doc_id, term):
     print("Print TF-IDF for the term: ", term, "in document: ", doc_id, "is", idx.get_tf_idf(doc_id, term))
     return idx.get_tf_idf(doc_id, term)
 
-def get_bm25_tf_command(doc_id, term, k1 = BM25_K1):
+def get_bm25_tf_command(doc_id, term, k1 = BM25_K1, b = BM25_B):
     """
     Retrieve the BM25 TF for a specific term in a given document.
     
@@ -238,8 +266,8 @@ def get_bm25_tf_command(doc_id, term, k1 = BM25_K1):
     """
     idx = InvertedIndex()
     idx.load()
-    print("Print BM25 TF for the term: ", term, "in document: ", doc_id, "is", idx.get_bm25_tf(doc_id, term, k1))
-    return idx.get_bm25_tf(doc_id, term, k1)
+    print("Print BM25 TF for the term: ", term, "in document: ", doc_id, "is", idx.get_bm25_tf(doc_id, term, k1, b))
+    return idx.get_bm25_tf(doc_id, term, k1, b)
      
 
 def tokenize_text(text):

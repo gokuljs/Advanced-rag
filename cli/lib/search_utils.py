@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 BM25_K1 = 1.5
+BM25_B = 0.75 # this is a hyperparameter that controls the bias towards longer documents
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "data"

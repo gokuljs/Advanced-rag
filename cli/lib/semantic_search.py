@@ -75,3 +75,12 @@ def verify_embeddings():
     print("length of the documents: ", len(documents))
     print("embedding shape: ", embeddings.shape[0])
 
+def embed_query_text(query):
+    """
+    Embed a given query text.
+    """
+    ss = SemanticSearch()
+    result = ss.generate_embeddings(query)
+    print(query)
+    print("embedding shape: ", result.shape)
+    print("embedding: ", result)

@@ -126,4 +126,4 @@ def search_command(query, n_results=5):
     ss.load_and_create_embeddings(documents)
     results = ss.search(query, n_results)
     for i,result in enumerate(results):
-        print(f"{i + 1}. {result['title']} \n {result['description'].strip()[0:100]} \n Score: {result['score']}")
+        print(f"{i + 1}. {result['title']} \n {result['description'].strip()[0:1000]} \n Score: {result['score']}")

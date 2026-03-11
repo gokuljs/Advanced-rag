@@ -1,3 +1,4 @@
+from collections import defaultdict
 import re
 from sentence_transformers import SentenceTransformer
 import numpy as np
@@ -118,6 +119,9 @@ class chunkedSemanticSearch(SemanticSearch):
         return self.chunk_embeddings
 
     def load_or_create_chunk_embeddings(self, documents: list[dict]) -> np.ndarray:
+        """
+        Load or create chunked embeddings for a given list of documents.
+        """
         self.documents = documents
         self.document_map = {doc["id"]: doc for doc in self.documents}
         if self.chunk_embeddings_path.exists() and self.chunk_metadata_path.exists():
@@ -126,6 +130,35 @@ class chunkedSemanticSearch(SemanticSearch):
                 self.chunk_metadata = json.load(f)
             return self.chunk_embeddings
         return self.build_chunked_embeddings(self.documents)
+
+    def search_chunks(self, query: str, n_results: int = 10):
+        """
+        Search for the most similar chunks to a given query.
+
+        Args:
+            query (str): _description_
+            n_results (int, optional): _description_. Defaults to 10.
+        """
+        query_embedding = self.generate_embeddings(query)
+        chunk_score = []
+        movie_score = defaultdict(lambda: 0)
+        for idx, chunk_emb in enumerate(self.chunk_embeddings):
+            metadata = self.chunk_metadata["chunks"][idx]
+            midx, cidx = metadata["movie_idx"], metadata["chunk_idx"]
+            sim = cosine_similarity(query_embedding, chunk_emb)
+            chunk_score.append({"score": sim, "movie_idx": midx, "chunk_idx": cidx})
+            movie_score[midx] = max(movie_score[midx], sim)
+        movie_score_sorted = sorted(movie_score.items(), key=lambda x: x[1], reverse=True)
+        res=[]
+        for movie_idx, score in movie_score_sorted[:n_results]:
+            res.append({
+                "id": self.documents[movie_idx]["id"],
+                "title": self.documents[movie_idx]["title"],
+                "description": self.documents[movie_idx]["description"][:100],
+                "score": score,
+                "metadata": self.chunk_metadata["chunks"][movie_idx] or {},
+            })
+        return res
 
 
 def verify_model(model_name: str = "all-MiniLM-L6-v2"):
@@ -252,10 +285,18 @@ def chunk_text(query, overlap, chunk_size=200):
     print(f"chunking {len(chunks)} chunks")
     for i, chunk in enumerate(chunks):
         print(f"{i + 1}. {chunk}")
-        
+
+
 def embed_chunks():
     movies = load_movies()
-    css= chunkedSemanticSearch()
+    css = chunkedSemanticSearch()
     chunk_embeddings = css.load_or_create_chunk_embeddings(movies)
     print(f"length of the chunked embeddings: {chunk_embeddings}")
-    
+
+def search_chunks_command(query, n_results=5):
+    css = chunkedSemanticSearch()
+    movies = load_movies()
+    css.load_or_create_chunk_embeddings(movies)
+    results = css.search_chunks(query, n_results)
+    for i, result in enumerate(results):
+        print(f"{i + 1}. {result['title']} \n {result['description'].strip()[0:1000]} \n Score: {result['score']}")

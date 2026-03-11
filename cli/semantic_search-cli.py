@@ -1,5 +1,5 @@
 import argparse
-from lib.semantic_search import verify_model,embed_text,verify_embeddings,embed_query_text,search_command,chunk_text,semantic_chunk_command,embed_chunks
+from lib.semantic_search import verify_model,embed_text,verify_embeddings,embed_query_text,search_command,chunk_text,semantic_chunk_command,embed_chunks,search_chunks_command
 
 def main():
     parser = argparse.ArgumentParser(description="Semantic Search CLI")
@@ -21,6 +21,9 @@ def main():
     semantic_chunk_parser.add_argument("text", type=str, help="Text to chunk")
     semantic_chunk_parser.add_argument("--max-chunk-size", type=int, default=4, help="Max sentences per chunk")
     semantic_chunk_parser.add_argument("--overlap", type=int, default=0, help="Sentence overlap between chunks")
+    chunked_semantic_search_parser = subparsers.add_parser("chunkedsemanticsearch", help="Search for the most similar chunks to a given query")
+    chunked_semantic_search_parser.add_argument("query", type=str, help="Query text to search for")
+    chunked_semantic_search_parser.add_argument("n_results", type=int, nargs="?", default=5, help="Number of results to return")
     embed_chunks_parser = subparsers.add_parser("embedchunks", help="Embed chunks of a given text")
     args = parser.parse_args()
     match args.command:
@@ -40,6 +43,8 @@ def main():
             semantic_chunk_command(args.text, args.max_chunk_size, args.overlap)
         case "embedchunks":
             embed_chunks()
+        case "chunkedsemanticsearch":
+            search_chunks_command(args.query, args.n_results)
         case _:
             print("Invalid command")
 

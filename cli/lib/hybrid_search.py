@@ -24,3 +24,21 @@ class HybridSearch:
 
     def rrf_search(self, query, k, limit=10):
         raise NotImplementedError("RRF hybrid search is not implemented yet.")
+    
+    
+def normalized_score(scores):
+    """
+    Score min max normalization function.
+    This is basically for hybrid search to combine the scores of the keyword search and the semantic search.
+    this is 
+    Args:
+        scores (list): List of scores to normalize.
+    Returns:
+        list: Normalized scores.
+    """
+    if not scores or len(scores) == 0:
+        return []
+    minimumScore = min(scores)
+    maximumScore = max(scores)
+    score_range = maximumScore - minimumScore
+    return [(score - minimumScore) / score_range for score in scores]

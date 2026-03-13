@@ -49,9 +49,16 @@ class InvertedIndex:
         self.term_frequency[doc_id].update(tokens)
         self.doc_lengths[doc_id] = len(tokens)
         
-    def get_avg_doc_length(self):
+    def get_avg_doc_length(self) -> float:
         """
-        Retrieve the average length of a document.
+        Compute the average token count across all indexed documents.
+
+        Used by ``get_bm25_tf`` as the length-normalisation denominator.
+        A higher value causes BM25 to penalise long documents more aggressively.
+
+        Returns:
+            Mean document length in tokens, or ``0.0`` if no documents have
+            been indexed yet.
         """
         lengths = list(self.doc_lengths.values())
         if len(lengths) == 0:
@@ -75,24 +82,51 @@ class InvertedIndex:
         """
         return sorted(list(self.index[term]))
     
-    def get_term_frequency(self, doc_id,term):
+    def get_term_frequency(self, doc_id: int, term: str) -> int:
         """
-        Retrieve the term frequency for a document.
-        
+        Return how many times ``term`` appears in document ``doc_id``.
+
+        The term is passed through the same tokenisation pipeline used at index
+        time (lowercasing, punctuation removal, stopword filtering, stemming) so
+        that raw surface forms (e.g. ``"running"``) resolve to their stem
+        (e.g. ``"run"``) correctly.
+
         Args:
-            doc_id: Document ID to look up
+            doc_id: Unique identifier of the document to query.
+            term: Surface-form term (pre-tokenisation).  Must resolve to exactly
+                one token after processing.
+
+        Returns:
+            Integer count of how many times the stemmed form of ``term`` occurs
+            in the document's token list.
+
+        Raises:
+            ValueError: If ``term`` tokenises to more than one token, which would
+                make the lookup ambiguous.
         """
         tokens = tokenize_text(term)
         if len(tokens) != 1:
             raise ValueError("Term must be a single token")
         return self.term_frequency[doc_id][tokens[0]]
 
-    def get_idf(self,term):
+    def get_idf(self, term: str) -> float:
         """
-        Retrieve the inverse document frequency for a term.
-        
+        Compute the smoothed IDF weight for a term using the classic TF-IDF formula.
+
+        Uses the add-1 smoothed variant:
+        ``IDF(t) = log((N + 1) / (df(t) + 1))``
+        where *N* is the total number of documents and *df(t)* is the number of
+        documents containing the term.  The +1 smoothing prevents division by zero
+        for unseen terms and dampens the influence of very common ones.
+
         Args:
-            term: Term to look up
+            term: Surface-form term.  Must tokenise to exactly one token.
+
+        Returns:
+            Non-negative float IDF weight.  Higher values indicate rarer terms.
+
+        Raises:
+            ValueError: If ``term`` tokenises to more than one token.
         """
         token= tokenize_text(term)
         if len(token) != 1:
@@ -102,25 +136,42 @@ class InvertedIndex:
         term_doc_count = len(self.index[token])
         return math.log((doc_count + 1) / (term_doc_count + 1))
     
-    def get_tf_idf(self, doc_id, term):
+    def get_tf_idf(self, doc_id: int, term: str) -> float:
         """
-        Retrieve the TF-IDF for a specific term in a given document.
-        
+        Compute the classic TF-IDF relevance score for a term in a document.
+
+        TF-IDF = TF(term, doc) × IDF(term).  Unlike BM25, the raw term frequency
+        is used without length normalisation.
+
         Args:
-            doc_id: Document ID to look up
-            term: Term to look up
+            doc_id: Unique identifier of the document.
+            term: Surface-form term (must tokenise to exactly one token).
+
+        Returns:
+            Float TF-IDF score.
         """
         tf = self.get_term_frequency(doc_id, term)
         idf = self.get_idf(term)
         return tf * idf
     
-    def bm25_search(self, query, n_results):
+    def bm25_search(self, query: str, n_results: int) -> list[dict]:
         """
-        Search for movies matching the query string using BM25.
-        
+        Rank all documents against ``query`` using the BM25 scoring function.
+
+        Tokenises the query, sums the BM25 TF-IDF contribution of each query
+        token across every document in the corpus, and returns the top-ranked
+        documents in descending score order.
+
         Args:
-            query: Search query string
-            n_results: Maximum number of results to return
+            query: Raw natural-language query string.
+            n_results: Maximum number of results to return.
+
+        Returns:
+            List of dicts (up to ``n_results``) each containing:
+
+            * ``doc_id`` – document identifier.
+            * ``title`` – document title.
+            * ``score`` – aggregated BM25 score (higher is more relevant).
         """
         tokens = tokenize_text(query)
         scores = {}
@@ -142,25 +193,46 @@ class InvertedIndex:
             
         return format_results
     
-    def get_bm25_tfidf(self, doc_id, term):
+    def get_bm25_tfidf(self, doc_id: int, term: str) -> float:
         """
-        Retrieve the BM25 TF-IDF for a specific term in a given document.
-        
+        Compute the full BM25 relevance score for a single term in a document.
+
+        Combines the BM25 TF component (length-normalised) with the BM25 IDF
+        component:  ``BM25(t, d) = BM25_TF(t, d) × BM25_IDF(t)``.
+
         Args:
-            doc_id: Document ID to look up
-            term: Term to look up
+            doc_id: Unique identifier of the document.
+            term: Surface-form term (must tokenise to exactly one token).
+
+        Returns:
+            Float BM25 score for this term–document pair.
         """
         tf = self.get_bm25_tf(doc_id, term)
         idf = self.get_idf(term)
         return tf * idf
     
-    def get_bm25_tf(self, doc_id, term,k1 = BM25_K1,b = BM25_B):
+    def get_bm25_tf(self, doc_id: int, term: str, k1: float = BM25_K1, b: float = BM25_B) -> float:
         """
-        Retrieve the BM25 TF for a specific term in a given document.
-        
+        Compute the BM25 term-frequency component for a term in a document.
+
+        Uses the standard BM25 saturation formula with length normalisation:
+        ``BM25_TF = (tf × (k1 + 1)) / (tf + k1 × (1 - b + b × (|d| / avgdl)))``
+
+        where ``|d|`` is the document length in tokens and ``avgdl`` is the
+        corpus-wide average document length.
+
         Args:
-            doc_id: Document ID to look up
-            term: Term to look up
+            doc_id: Unique identifier of the document.
+            term: Surface-form term (must tokenise to exactly one token).
+            k1: Controls term-frequency saturation.  Higher values reduce
+                saturation, giving more weight to repeated terms.
+                Defaults to ``BM25_K1`` (1.5).
+            b: Controls the degree of document-length normalisation.  ``b=1``
+                is full normalisation; ``b=0`` disables it.
+                Defaults to ``BM25_B`` (0.75).
+
+        Returns:
+            Float BM25 TF component for this term–document pair.
         """
         tf = self.get_term_frequency(doc_id, term)
         doc_length = self.doc_lengths[doc_id]
@@ -172,7 +244,26 @@ class InvertedIndex:
             length_norm = 1.0
         return (tf * (k1 + 1)) / (tf + k1 * length_norm)
     
-    def get_bm25_idf(self, term):
+    def get_bm25_idf(self, term: str) -> float:
+        """
+        Compute the Robertson–Spärck Jones BM25 IDF weight for a term.
+
+        Uses the probabilistic BM25 IDF variant:
+        ``BM25_IDF(t) = log((N - df(t) + 0.5) / (df(t) + 0.5) + 1)``
+
+        This differs from the classic TF-IDF IDF in that it explicitly models
+        the probability of relevance.  The ``+ 1`` inside the log keeps the
+        result positive even for very common terms.
+
+        Args:
+            term: Surface-form term (must tokenise to exactly one token).
+
+        Returns:
+            Non-negative float BM25 IDF weight.
+
+        Raises:
+            ValueError: If ``term`` tokenises to more than one token.
+        """
         token= tokenize_text(term)
         if len(token) != 1:
             raise ValueError("can only have one token")
@@ -280,32 +371,49 @@ def idf_command(term):
     print("Print inverse document frequency for the term: ", term, "is", idx.get_idf(term))
     return idx.get_idf(term)
 
-def get_bm25_idf_command(term):
+def get_bm25_idf_command(term: str) -> float:
+    """
+    Load the index from disk, compute the BM25 IDF for ``term``, and print it.
+
+    Args:
+        term: Surface-form term whose BM25 IDF is to be computed.
+
+    Returns:
+        Float BM25 IDF weight for the term.
+    """
     idx = InvertedIndex()
     idx.load()
     print("Print BM25 IDF for the term: ", term, "is", idx.get_bm25_idf(term))
     return idx.get_bm25_idf(term)
 
-def get_tf_idf_command(doc_id, term):
+def get_tf_idf_command(doc_id: int, term: str) -> float:
     """
-    Retrieve the TF-IDF for a specific term in a given document.
-    
+    Load the index from disk, compute TF-IDF for ``term`` in ``doc_id``, and print it.
+
     Args:
-        doc_id: Document ID to look up
-        term: Term to look up
+        doc_id: Unique identifier of the document.
+        term: Surface-form term (must tokenise to exactly one token).
+
+    Returns:
+        Float TF-IDF score for the term–document pair.
     """
     idx = InvertedIndex()
     idx.load()
     print("Print TF-IDF for the term: ", term, "in document: ", doc_id, "is", idx.get_tf_idf(doc_id, term))
     return idx.get_tf_idf(doc_id, term)
 
-def get_bm25_tf_command(doc_id, term, k1 = BM25_K1, b = BM25_B):
+def get_bm25_tf_command(doc_id: int, term: str, k1: float = BM25_K1, b: float = BM25_B) -> float:
     """
-    Retrieve the BM25 TF for a specific term in a given document.
-    
+    Load the index from disk, compute the BM25 TF component for ``term`` in ``doc_id``, and print it.
+
     Args:
-        doc_id: Document ID to look up
-        term: Term to look up
+        doc_id: Unique identifier of the document.
+        term: Surface-form term (must tokenise to exactly one token).
+        k1: BM25 saturation parameter.  Defaults to ``BM25_K1`` (1.5).
+        b: BM25 length-normalisation parameter.  Defaults to ``BM25_B`` (0.75).
+
+    Returns:
+        Float BM25 TF component for the term–document pair.
     """
     idx = InvertedIndex()
     idx.load()
@@ -359,13 +467,36 @@ def has_matching_tokens(query_tokens, movie_tokens):
                 return True
     return False
 
-def build_command():
+def build_command() -> None:
+    """
+    Build the inverted index from the movie dataset and persist it to disk.
+
+    Constructs a fresh ``InvertedIndex``, indexes every movie's title and
+    description, then serialises the index, document map, term frequencies,
+    and document lengths to pickle files in the cache directory.
+
+    This must be run at least once before any search commands can be used.
+    """
     docs = InvertedIndex()
     docs.build()
     docs.save()
 
 
-def bm25_search_command(query, n_results=5):
+def bm25_search_command(query: str, n_results: int = 5) -> list[dict]:
+    """
+    Load the inverted index from disk and run a BM25 search.
+
+    Convenience wrapper around ``InvertedIndex.bm25_search`` intended for use
+    by CLI entry points.
+
+    Args:
+        query: Raw natural-language query string.
+        n_results: Maximum number of results to return.  Defaults to 5.
+
+    Returns:
+        List of result dicts containing ``doc_id``, ``title``, and ``score``,
+        ordered by descending BM25 score.
+    """
     docs = InvertedIndex()
     docs.load()
     result = docs.bm25_search(query, n_results)

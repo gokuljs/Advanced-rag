@@ -1,3 +1,26 @@
+"""
+Command-line interface for keyword (BM25) search operations.
+
+Exposes the following sub-commands, each mapping to a function in
+``lib.keyboard_search``:
+
+* ``build``       – index the movie corpus and persist to disk.
+* ``search``      – retrieve matching movies using the inverted index.
+* ``bm25search``  – rank movies with full BM25 scoring.
+* ``tf``          – inspect the raw term frequency for a term in a document.
+* ``idf``         – inspect the classic IDF weight for a term.
+* ``tfidf``       – inspect the TF-IDF score for a term in a document.
+* ``bm25idf``     – inspect the BM25 IDF weight for a term.
+* ``bm25tf``      – inspect the BM25 TF component for a term in a document.
+
+Usage examples::
+
+    python keyword_search_cli.py build
+    python keyword_search_cli.py bm25search "sci-fi adventure"
+    python keyword_search_cli.py tf 42 "space"
+    python keyword_search_cli.py bm25tf 42 "space" 1.5 0.75
+"""
+
 import argparse
 from lib.keyboard_search import (
     search_command,
@@ -11,7 +34,16 @@ from lib.keyboard_search import (
 )
 from lib.search_utils import BM25_K1, BM25_B
 
-def main():
+
+def main() -> None:
+    """
+    Parse CLI arguments and dispatch to the appropriate keyword-search command.
+
+    Each sub-command loads the pre-built inverted index from disk (except
+    ``build``, which creates it), calls the corresponding library function,
+    and prints the result to stdout.  Run with ``--help`` or without arguments
+    to see a summary of available sub-commands.
+    """
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
     search_parser = subparsers.add_parser("search", help="Search movies using BM25")

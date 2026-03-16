@@ -14,7 +14,7 @@ import os
 from .keyword_search import InvertedIndex
 from .semantic_search import chunkedSemanticSearch
 from .search_utils import load_movies
-from .llm import correct_spelling
+from .llm import correct_spelling, rewrite_query
 
 
 class HybridSearch:
@@ -336,6 +336,10 @@ def rrf_score_search(query, k=0.5, limit=5, enhance=None):
     match enhance:
         case "spell":
             new_query = correct_spelling(query)
+            print(f"New query: {new_query} -> Original query: {query}")
+            query = new_query
+        case "rewrite":
+            new_query = rewrite_query(query)
             print(f"New query: {new_query} -> Original query: {query}")
             query = new_query
     results = hs.rrf_search(query, k, limit)

@@ -49,3 +49,14 @@ def correct_spelling(query):
     with open(PROMPTS_DIR / "spelling.md", "r") as f:
         prompt = f.read()
     return generate_content(prompt, query)
+
+def rewrite_query(query):
+    """
+    Use an LLM (Gemini) to rewrite a provided query string.
+
+    This function reads a rewrite prompt template from 'prompts/rewrite.md',
+    feeds the original query and template to the LLM, and returns the LLM's suggested rewrite.
+    """
+    with open(PROMPTS_DIR / "rewrite.md", "r") as f:
+        prompt = f.read()
+    return generate_content(prompt, query)
